@@ -60,8 +60,11 @@ export default function BarRows({
               {r.value.toLocaleString("en-US")}
               {unit}
             </span>
+            {/* Anchored above the bar and allowed to wrap — a nowrap tooltip
+                overflows the viewport on narrow screens. bottom-full keeps a
+                two-line tooltip growing upward, never over the next row. */}
             {hover === i && r.hint && (
-              <span className="pointer-events-none absolute -top-7 left-32 z-10 whitespace-nowrap border-2 border-black bg-white px-2 py-0.5 text-xs font-bold shadow-hard sm:left-40">
+              <span className="pointer-events-none absolute bottom-full left-32 z-10 mb-0.5 max-w-[calc(100%-8.5rem)] border-2 border-black bg-white px-2 py-0.5 text-xs font-bold shadow-hard sm:left-40 sm:max-w-[calc(100%-10.5rem)]">
                 <strong className="font-black">
                   {r.value.toLocaleString("en-US")}
                   {unit}

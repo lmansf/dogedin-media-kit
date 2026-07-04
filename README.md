@@ -42,3 +42,33 @@ With no env configured the page renders labelled **sample data**.
 Stock Next.js 15 → Vercel; set the `NEXT_PUBLIC_SUPABASE_*` vars (plus
 `NEXT_PUBLIC_SITE_URL` / `NEXT_PUBLIC_CONTACT_EMAIL` if they differ from the
 defaults). A nice touch: point a subdomain like `advertise.dogedin.com` at it.
+
+## Production checklist (live numbers, not placeholders)
+
+The page shows a gold **"Sample data"** banner whenever it is NOT serving
+live numbers — the banner text says whether the env is missing or the live
+fetch failed. To go live:
+
+1. **Create the RPCs** — run the main repo's `supabase/schema.sql` § 7
+   (`media_kit_stats`, and `media_kit_weekly` for the growth chart) against
+   the **production** Supabase project (SQL editor, once — the file is
+   idempotent). Quick check that it worked:
+
+   ```bash
+   curl -X POST "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/rpc/media_kit_stats" \
+     -H "apikey: $NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+     -H "Authorization: Bearer $NEXT_PUBLIC_SUPABASE_ANON_KEY"
+   # → JSON stats, not a 404 "function not found"
+   ```
+
+2. **Set the env vars** — `NEXT_PUBLIC_SUPABASE_URL` and
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY` in the Vercel project settings (all
+   environments).
+
+3. **Redeploy** — env vars are baked in at build time, so a redeploy is
+   required after changing them. After that, data refreshes on a 10-minute
+   ISR window (`revalidate = 600` in `app/page.tsx`).
+
+If the banner still shows "fetch failed" after all three steps, the exact
+Supabase error is in the Vercel function logs (`[media-kit] media_kit_stats
+RPC failed …`).

@@ -1,9 +1,12 @@
 import { getMediaKitStats } from "@/lib/stats";
 import { SITE_URL, CONTACT_EMAIL } from "@/lib/supabase";
+import { compact } from "@/lib/format";
 import StatTile from "@/components/charts/StatTile";
 import BarRows from "@/components/charts/BarRows";
 
-export const revalidate = 3600;
+// Short enough that a schema/env fix shows up within minutes, long enough
+// that the Supabase RPCs aren't hit on every request.
+export const revalidate = 600;
 
 const SLOT_INFO: Record<string, { name: string; where: string; blurb: string }> = {
   home_feed: {
@@ -32,10 +35,18 @@ export default async function MediaKit() {
 
   return (
     <div className="flex flex-col gap-10">
-      {s.demo && (
+      {s.demo === "unconfigured" && (
         <p className="border-[3px] border-black bg-[var(--gold)]/30 px-4 py-2 text-xs font-black uppercase tracking-wide">
           Sample data — set NEXT_PUBLIC_SUPABASE_URL / ANON_KEY to publish live
           numbers.
+        </p>
+      )}
+      {s.demo === "fetch_failed" && (
+        <p className="border-[3px] border-black bg-[var(--gold)]/30 px-4 py-2 text-xs font-black uppercase tracking-wide">
+          Sample data — the live stats fetch failed. Check that
+          media_kit_stats() exists on the Supabase project (main repo
+          schema.sql § 7) and that the URL / anon key are correct; details are
+          in the server logs.
         </p>
       )}
 
@@ -81,18 +92,14 @@ export default async function MediaKit() {
           blurb="Every number below is a live aggregate from the community — refresh the page and it re-counts."
         />
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatTile
-            label="Photos shared · 30d"
-            value={s.posts30.toLocaleString("en-US")}
-          />
-          <StatTile label="Paws given · 30d" value={s.paws30.toLocaleString("en-US")} />
-          <StatTile
-            label="Dog friendships"
-            value={s.friendships.toLocaleString("en-US")}
-          />
+          {/* compact() keeps five-digit-plus values inside a ~150px tile at
+              360px viewports. */}
+          <StatTile label="Photos shared · 30d" value={compact(s.posts30)} />
+          <StatTile label="Paws given · 30d" value={compact(s.paws30)} />
+          <StatTile label="Dog friendships" value={compact(s.friendships)} />
           <StatTile
             label="Local guide reviews"
-            value={s.reviews.toLocaleString("en-US")}
+            value={compact(s.reviews)}
             hint={s.avgRating ? `${s.avgRating}★ average` : undefined}
           />
         </div>
@@ -208,9 +215,11 @@ export default async function MediaKit() {
             >
               Inquiry form →
             </a>
+            {/* max-w-full + break-all: a long configured contact email wraps
+                inside the button instead of overflowing a 360px screen. */}
             <a
               href={`mailto:${CONTACT_EMAIL}`}
-              className="border-[3px] border-black bg-white px-5 py-2 text-sm font-black uppercase tracking-wide text-[var(--ink)] shadow-hard transition-transform hover:-translate-y-0.5"
+              className="max-w-full break-all border-[3px] border-black bg-white px-5 py-2 text-sm font-black uppercase tracking-wide text-[var(--ink)] shadow-hard transition-transform hover:-translate-y-0.5"
             >
               {CONTACT_EMAIL}
             </a>

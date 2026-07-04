@@ -11,11 +11,13 @@ export default function StatTile({
   hint?: string;
 }) {
   return (
-    <div className="border-[3px] border-black bg-white p-4 shadow-hard">
+    // min-w-0 + break-words: a grid cell must never widen past its track, and
+    // a value that somehow beats compact() wraps instead of overflowing.
+    <div className="min-w-0 border-[3px] border-black bg-white p-4 shadow-hard">
       <p className="text-xs font-black uppercase tracking-wide text-black/50">
         {label}
       </p>
-      <p className="mt-1 text-4xl font-black leading-none">{value}</p>
+      <p className="mt-1 break-words text-4xl font-black leading-none">{value}</p>
       {hint && <p className="mt-2 text-xs font-bold text-black/50">{hint}</p>}
     </div>
   );

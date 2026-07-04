@@ -12,8 +12,15 @@ export type SlotStat = {
   ctr_30d: number;
 };
 
+// Why the page is showing sample numbers — false means the numbers are live.
+// "unconfigured": the Supabase env vars aren't set (expected in local dev).
+// "fetch_failed": env IS set but the RPC errored — usually media_kit_stats()
+// hasn't been created on that project yet (main repo schema.sql § 7), or the
+// URL/key is wrong. Never render placeholder numbers without saying which.
+export type DemoReason = false | "unconfigured" | "fetch_failed";
+
 export type MediaKitStats = {
-  demo: boolean;
+  demo: DemoReason;
   dogsTotal: number;
   dogsNew90: number;
   posts30: number;
@@ -28,7 +35,15 @@ export type MediaKitStats = {
 export async function getMediaKitStats(): Promise<MediaKitStats> {
   if (!supabase) return DEMO;
   const { data, error } = await supabase.rpc("media_kit_stats");
-  if (error || !data) return { ...DEMO, demo: false };
+  if (error || !data) {
+    // Loud, labelled fallback — placeholder numbers must NEVER render as if
+    // they were live. The message lands in the server/Vercel function logs.
+    console.error(
+      "[media-kit] media_kit_stats RPC failed — rendering labelled sample data:",
+      error?.message ?? "RPC returned no data"
+    );
+    return { ...DEMO, demo: "fetch_failed" };
+  }
   const d = data as {
     dogs_total: number;
     dogs_new_90d: number;
@@ -55,7 +70,7 @@ export async function getMediaKitStats(): Promise<MediaKitStats> {
 }
 
 const DEMO: MediaKitStats = {
-  demo: true,
+  demo: "unconfigured",
   dogsTotal: 87,
   dogsNew90: 34,
   posts30: 42,
