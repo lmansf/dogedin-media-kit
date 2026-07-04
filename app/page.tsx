@@ -5,6 +5,7 @@ import StatTile from "@/components/charts/StatTile";
 import BarRows from "@/components/charts/BarRows";
 import StackBar from "@/components/charts/StackBar";
 import TrendChart from "@/components/charts/TrendChart";
+import TrackedLink from "@/components/TrackedLink";
 
 // Short enough that a schema/env fix shows up within minutes, long enough
 // that the Supabase RPCs aren't hit on every request.
@@ -80,12 +81,13 @@ export default async function MediaKit() {
                 Registered local dogs (+{s.dogsNew90} in 90 days)
               </p>
             </div>
-            <a
+            <TrackedLink
+              placement="hero"
               href={`${SITE_URL}/advertise`}
               className="border-[3px] border-black bg-[var(--turq)] px-5 py-2.5 text-sm font-black uppercase tracking-wide text-[var(--sand)] shadow-hard transition-transform hover:-translate-y-0.5"
             >
               Start an inquiry →
-            </a>
+            </TrackedLink>
           </div>
         </div>
       </section>
@@ -257,12 +259,13 @@ export default async function MediaKit() {
               current rates and what&apos;s available.
             </p>
           </div>
-          <a
+          <TrackedLink
+            placement="mid_page"
             href={`${SITE_URL}/advertise`}
             className="shrink-0 border-[3px] border-black bg-[var(--ink)] px-6 py-3 text-sm font-black uppercase tracking-wide text-[var(--sand)] shadow-hard transition-transform hover:-translate-y-0.5"
           >
             Start an inquiry →
-          </a>
+          </TrackedLink>
         </div>
       </section>
 
@@ -303,20 +306,22 @@ export default async function MediaKit() {
             rates and what&apos;s available.
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-3">
-            <a
+            <TrackedLink
+              placement="closing"
               href={`${SITE_URL}/advertise`}
               className="border-[3px] border-black bg-[var(--gold)] px-5 py-2 text-sm font-black uppercase tracking-wide text-[var(--ink)] shadow-hard transition-transform hover:-translate-y-0.5"
             >
               Inquiry form →
-            </a>
+            </TrackedLink>
             {/* max-w-full + break-all: a long configured contact email wraps
                 inside the button instead of overflowing a 360px screen. */}
-            <a
+            <TrackedLink
+              placement="mailto"
               href={`mailto:${CONTACT_EMAIL}`}
               className="max-w-full break-all border-[3px] border-black bg-white px-5 py-2 text-sm font-black uppercase tracking-wide text-[var(--ink)] shadow-hard transition-transform hover:-translate-y-0.5"
             >
               {CONTACT_EMAIL}
-            </a>
+            </TrackedLink>
           </div>
         </div>
       </section>

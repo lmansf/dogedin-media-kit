@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Fraunces, Nunito } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { SITE_URL } from "@/lib/supabase";
+import TrackedLink from "@/components/TrackedLink";
 
 const display = Fraunces({
   subsets: ["latin"],
@@ -40,12 +42,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </p>
               </div>
             </div>
-            <a
+            <TrackedLink
+              placement="header"
               href={`${SITE_URL}/advertise`}
               className="inline-flex min-h-11 shrink-0 items-center border-[3px] border-black bg-[var(--coral)] px-3 py-1.5 text-xs font-black uppercase tracking-wide shadow-hard transition-transform hover:-translate-y-0.5"
             >
               <span className="hidden sm:inline">Start an&nbsp;</span>Inquiry →
-            </a>
+            </TrackedLink>
           </div>
         </header>
         <main className="mx-auto max-w-4xl px-4 py-8">{children}</main>
@@ -55,6 +58,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             individual results are ever shown here. 🏴 Dunedin, FL.
           </p>
         </footer>
+        <Analytics />
       </body>
     </html>
   );
