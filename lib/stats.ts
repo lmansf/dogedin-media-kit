@@ -1,9 +1,11 @@
 import { supabase } from "@/lib/supabase";
+import { lastWeeks } from "@/lib/format";
 
-// One RPC: media_kit_stats() on the main project's schema. SECURITY DEFINER,
-// granted to anon, and deliberately anonymized — community-scale counts and
-// slot-level ad totals only. No advertiser identities, no member data. See
-// supabase/schema.sql § 7 in the main dogedin repo.
+// Two RPCs on the main project's schema: media_kit_stats() (scalars + slot
+// totals) and media_kit_weekly() (12 weeks of growth counts). Both SECURITY
+// DEFINER, granted to anon, and deliberately anonymized — community-scale
+// counts and slot-level ad totals only. No advertiser identities, no member
+// data. See supabase/schema.sql § 7 in the main dogedin repo.
 
 export type SlotStat = {
   slot: string;
@@ -85,3 +87,56 @@ const DEMO: MediaKitStats = {
     { slot: "events_feed", impressions_30d: 1860, clicks_30d: 34, ctr_30d: 1.83 },
   ],
 };
+
+// ---------------------------------------------------------------------------
+// Weekly community growth — media_kit_weekly() returns up to 12 rows of
+// (week_start date, new_dogs, new_posts, new_paws). Chart-ready shape: one
+// label per calendar week (Mon–Sun, oldest first), zero-filled for weeks the
+// RPC has no row for. Returns null whenever there's nothing live to show —
+// no env (sample mode has no invented trend) or the RPC isn't deployed yet —
+// and the page hides the growth card entirely.
+
+export type WeeklyGrowth = {
+  labels: string[];
+  newDogs: number[];
+  newPosts: number[];
+  newPaws: number[];
+};
+
+export async function getMediaKitWeekly(): Promise<WeeklyGrowth | null> {
+  if (!supabase) return null;
+  const { data, error } = await supabase.rpc("media_kit_weekly");
+  if (error || !data) {
+    // Not fatal — the RPC may simply not be applied to this project yet
+    // (main repo schema.sql § 7). The page renders without the growth card.
+    console.error(
+      "[media-kit] media_kit_weekly RPC failed — hiding the growth chart:",
+      error?.message ?? "RPC returned no data"
+    );
+    return null;
+  }
+  const rows = data as {
+    week_start: string;
+    new_dogs: number;
+    new_posts: number;
+    new_paws: number;
+  }[];
+  // Align rows onto the last 12 calendar weeks so gaps render as zeroes.
+  // week_start is a bare `date` string ("2026-06-29") — parse it as a LOCAL
+  // date (new Date("yyyy-mm-dd") would be UTC midnight and can land in the
+  // wrong bucket on a non-UTC server).
+  const weeks = lastWeeks(12);
+  const parsed = rows.map((r) => {
+    const [y, m, d] = r.week_start.slice(0, 10).split("-").map(Number);
+    return { ...r, date: new Date(y, m - 1, d) };
+  });
+  const growth: WeeklyGrowth = { labels: [], newDogs: [], newPosts: [], newPaws: [] };
+  for (const w of weeks) {
+    const row = parsed.find((r) => r.date >= w.start && r.date < w.end);
+    growth.labels.push(w.label);
+    growth.newDogs.push(row?.new_dogs ?? 0);
+    growth.newPosts.push(row?.new_posts ?? 0);
+    growth.newPaws.push(row?.new_paws ?? 0);
+  }
+  return growth;
+}
