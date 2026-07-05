@@ -1,9 +1,15 @@
-import { getMediaKitStats } from "@/lib/stats";
+import { getMediaKitStats, getMediaKitWeekly } from "@/lib/stats";
 import { SITE_URL, CONTACT_EMAIL } from "@/lib/supabase";
+import { compact } from "@/lib/format";
 import StatTile from "@/components/charts/StatTile";
 import BarRows from "@/components/charts/BarRows";
+import StackBar from "@/components/charts/StackBar";
+import TrendChart from "@/components/charts/TrendChart";
+import TrackedLink from "@/components/TrackedLink";
 
-export const revalidate = 3600;
+// Short enough that a schema/env fix shows up within minutes, long enough
+// that the Supabase RPCs aren't hit on every request.
+export const revalidate = 600;
 
 const SLOT_INFO: Record<string, { name: string; where: string; blurb: string }> = {
   home_feed: {
@@ -26,16 +32,28 @@ const SLOT_INFO: Record<string, { name: string; where: string; blurb: string }> 
   },
 };
 
+// Fixed --series-* assignment per slot so the stacked bar, the CTR bars and
+// the placement cards all speak the same color.
+const SLOT_COLORS = ["var(--series-1)", "var(--series-2)", "var(--series-3)"];
+
 export default async function MediaKit() {
-  const s = await getMediaKitStats();
+  const [s, weekly] = await Promise.all([getMediaKitStats(), getMediaKitWeekly()]);
   const hasAdData = s.slots.some((x) => x.impressions_30d > 0);
 
   return (
     <div className="flex flex-col gap-10">
-      {s.demo && (
+      {s.demo === "unconfigured" && (
         <p className="border-[3px] border-black bg-[var(--gold)]/30 px-4 py-2 text-xs font-black uppercase tracking-wide">
           Sample data — set NEXT_PUBLIC_SUPABASE_URL / ANON_KEY to publish live
           numbers.
+        </p>
+      )}
+      {s.demo === "fetch_failed" && (
+        <p className="border-[3px] border-black bg-[var(--gold)]/30 px-4 py-2 text-xs font-black uppercase tracking-wide">
+          Sample data — the live stats fetch failed. Check that
+          media_kit_stats() exists on the Supabase project (main repo
+          schema.sql § 7) and that the URL / anon key are correct; details are
+          in the server logs.
         </p>
       )}
 
@@ -63,12 +81,13 @@ export default async function MediaKit() {
                 Registered local dogs (+{s.dogsNew90} in 90 days)
               </p>
             </div>
-            <a
+            <TrackedLink
+              placement="hero"
               href={`${SITE_URL}/advertise`}
               className="border-[3px] border-black bg-[var(--turq)] px-5 py-2.5 text-sm font-black uppercase tracking-wide text-[var(--sand)] shadow-hard transition-transform hover:-translate-y-0.5"
             >
               Start an inquiry →
-            </a>
+            </TrackedLink>
           </div>
         </div>
       </section>
@@ -81,18 +100,14 @@ export default async function MediaKit() {
           blurb="Every number below is a live aggregate from the community — refresh the page and it re-counts."
         />
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatTile
-            label="Photos shared · 30d"
-            value={s.posts30.toLocaleString("en-US")}
-          />
-          <StatTile label="Paws given · 30d" value={s.paws30.toLocaleString("en-US")} />
-          <StatTile
-            label="Dog friendships"
-            value={s.friendships.toLocaleString("en-US")}
-          />
+          {/* compact() keeps five-digit-plus values inside a ~150px tile at
+              360px viewports. */}
+          <StatTile label="Photos shared · 30d" value={compact(s.posts30)} />
+          <StatTile label="Paws given · 30d" value={compact(s.paws30)} />
+          <StatTile label="Dog friendships" value={compact(s.friendships)} />
           <StatTile
             label="Local guide reviews"
-            value={s.reviews.toLocaleString("en-US")}
+            value={compact(s.reviews)}
             hint={s.avgRating ? `${s.avgRating}★ average` : undefined}
           />
         </div>
@@ -101,6 +116,24 @@ export default async function MediaKit() {
           listed in the dog-friendly guide. Page-view traffic stats are
           available on request.
         </p>
+
+        {/* Weekly growth — only rendered when media_kit_weekly() answers
+            with live data. No chart beats a made-up curve. */}
+        {weekly && (
+          <div className="border-[3px] border-black bg-white p-4 shadow-hard">
+            <h3 className="mb-3 text-sm font-black uppercase tracking-wide">
+              Community growth · new per week · last 12 weeks
+            </h3>
+            <TrendChart
+              labels={weekly.labels}
+              series={[
+                { name: "New dogs", color: "var(--series-1)", values: weekly.newDogs },
+                { name: "Photos", color: "var(--series-2)", values: weekly.newPosts },
+                { name: "Paws", color: "var(--series-3)", values: weekly.newPaws },
+              ]}
+            />
+          </div>
+        )}
       </section>
 
       {/* ------------------------------------------------ Placements */}
@@ -123,14 +156,42 @@ export default async function MediaKit() {
                 </p>
                 <p className="mt-2 flex-1 text-xs font-bold text-black/60">{info.blurb}</p>
                 {stat && stat.impressions_30d > 0 ? (
-                  <p className="mt-3 border-t-2 border-black pt-2 text-xs font-bold text-black/70">
-                    <strong className="font-black">
-                      {stat.impressions_30d.toLocaleString("en-US")}
-                    </strong>{" "}
-                    impressions ·{" "}
-                    <strong className="font-black">{stat.ctr_30d}%</strong> CTR
-                    <span className="text-black/40"> · last 30 days</span>
-                  </p>
+                  <div className="mt-3 border-t-2 border-black pt-2">
+                    <p className="text-xs font-bold text-black/70">
+                      <strong className="font-black">
+                        {stat.impressions_30d.toLocaleString("en-US")}
+                      </strong>{" "}
+                      impressions ·{" "}
+                      <strong className="font-black">{stat.ctr_30d}%</strong> CTR
+                      <span className="text-black/40"> · last 30 days</span>
+                    </p>
+                    {/* Drill-down: overview line above for skimmers, the full
+                        slot breakdown one tap away. Plain <details> — works
+                        without JS and stays a server component. */}
+                    <details className="mt-1">
+                      <summary className="cursor-pointer text-[11px] font-black uppercase tracking-wide text-[var(--turq)]">
+                        Full 30-day numbers
+                      </summary>
+                      <dl className="mt-2 flex flex-col gap-1 text-xs font-bold text-black/70">
+                        <div className="flex justify-between gap-2">
+                          <dt>Impressions</dt>
+                          <dd className="font-black tabular-nums">
+                            {stat.impressions_30d.toLocaleString("en-US")}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <dt>Clicks</dt>
+                          <dd className="font-black tabular-nums">
+                            {stat.clicks_30d.toLocaleString("en-US")}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <dt>Click-through rate</dt>
+                          <dd className="font-black tabular-nums">{stat.ctr_30d}%</dd>
+                        </div>
+                      </dl>
+                    </details>
+                  </div>
                 ) : (
                   <p className="mt-3 border-t-2 border-black pt-2 text-xs font-black uppercase tracking-wide text-[var(--coral)]">
                     Fresh slot — be the first
@@ -140,6 +201,24 @@ export default async function MediaKit() {
             );
           })}
         </div>
+
+        {hasAdData && (
+          <div className="border-[3px] border-black bg-white p-4 shadow-hard">
+            <h3 className="mb-3 text-sm font-black uppercase tracking-wide">
+              Impression share by placement · last 30 days
+            </h3>
+            <StackBar
+              segments={Object.keys(SLOT_INFO).map((key, i) => {
+                const stat = s.slots.find((x) => x.slot === key);
+                return {
+                  label: SLOT_INFO[key].name,
+                  value: stat?.impressions_30d ?? 0,
+                  color: SLOT_COLORS[i % SLOT_COLORS.length],
+                };
+              })}
+            />
+          </div>
+        )}
 
         {hasAdData && (
           <div className="border-[3px] border-black bg-white p-4 shadow-hard">
@@ -163,6 +242,31 @@ export default async function MediaKit() {
             </p>
           </div>
         )}
+      </section>
+
+      {/* ------------------------------------------------ Mid-page CTA */}
+      {/* Buying intent peaks right after the CTR numbers — catch it before
+          the how-it-works details. */}
+      <section className="relative overflow-hidden border-[3px] border-black bg-[var(--coral)] p-6 shadow-hard-lg sm:p-8">
+        <div className="dots absolute inset-0" />
+        <div className="relative flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 className="font-display text-2xl font-extrabold leading-tight sm:text-3xl">
+              Want your card in one of these slots?
+            </h2>
+            <p className="mt-1 max-w-md text-sm font-bold text-black/70">
+              Tell us which placement and when — we&apos;ll come back with
+              current rates and what&apos;s available.
+            </p>
+          </div>
+          <TrackedLink
+            placement="mid_page"
+            href={`${SITE_URL}/advertise`}
+            className="shrink-0 border-[3px] border-black bg-[var(--ink)] px-6 py-3 text-sm font-black uppercase tracking-wide text-[var(--sand)] shadow-hard transition-transform hover:-translate-y-0.5"
+          >
+            Start an inquiry →
+          </TrackedLink>
+        </div>
       </section>
 
       {/* ------------------------------------------------ How it works */}
@@ -202,18 +306,22 @@ export default async function MediaKit() {
             rates and what&apos;s available.
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-3">
-            <a
+            <TrackedLink
+              placement="closing"
               href={`${SITE_URL}/advertise`}
               className="border-[3px] border-black bg-[var(--gold)] px-5 py-2 text-sm font-black uppercase tracking-wide text-[var(--ink)] shadow-hard transition-transform hover:-translate-y-0.5"
             >
               Inquiry form →
-            </a>
-            <a
+            </TrackedLink>
+            {/* max-w-full + break-all: a long configured contact email wraps
+                inside the button instead of overflowing a 360px screen. */}
+            <TrackedLink
+              placement="mailto"
               href={`mailto:${CONTACT_EMAIL}`}
-              className="border-[3px] border-black bg-white px-5 py-2 text-sm font-black uppercase tracking-wide text-[var(--ink)] shadow-hard transition-transform hover:-translate-y-0.5"
+              className="max-w-full break-all border-[3px] border-black bg-white px-5 py-2 text-sm font-black uppercase tracking-wide text-[var(--ink)] shadow-hard transition-transform hover:-translate-y-0.5"
             >
               {CONTACT_EMAIL}
-            </a>
+            </TrackedLink>
           </div>
         </div>
       </section>

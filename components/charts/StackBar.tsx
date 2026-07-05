@@ -18,6 +18,17 @@ export default function StackBar({ segments }: { segments: StackSegment[] }) {
     return <p className="text-sm font-bold text-black/40">No data yet.</p>;
   }
 
+  // Center of each segment as a % of the bar, for anchoring the tooltip at
+  // the container level (an in-segment tooltip overflows the viewport when a
+  // narrow segment sits near an edge on a 360px screen).
+  const centers: number[] = [];
+  let acc = 0;
+  for (const s of shown) {
+    const p = (100 * s.value) / total;
+    centers.push(acc + p / 2);
+    acc += p;
+  }
+
   return (
     <div>
       <div className="relative flex h-6 w-full gap-[2px]">
@@ -42,17 +53,24 @@ export default function StackBar({ segments }: { segments: StackSegment[] }) {
                   {Math.round(p)}%
                 </span>
               )}
-              {hover === i && (
-                <span className="pointer-events-none absolute -top-8 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap border-2 border-black bg-white px-2 py-0.5 text-xs font-bold shadow-hard">
-                  <strong className="font-black tabular-nums">
-                    {s.value.toLocaleString("en-US")}
-                  </strong>{" "}
-                  <span className="text-black/60">{s.label}</span>
-                </span>
-              )}
             </div>
           );
         })}
+        {hover !== null && (
+          <span
+            className="pointer-events-none absolute bottom-full z-10 mb-1 border-2 border-black bg-white px-2 py-0.5 text-xs font-bold shadow-hard"
+            style={
+              centers[hover] > 50
+                ? { right: `${100 - centers[hover]}%` }
+                : { left: `${centers[hover]}%` }
+            }
+          >
+            <strong className="font-black tabular-nums">
+              {shown[hover].value.toLocaleString("en-US")}
+            </strong>{" "}
+            <span className="text-black/60">{shown[hover].label}</span>
+          </span>
+        )}
       </div>
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
         {segments.map((s) => (
