@@ -42,20 +42,32 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </p>
               </div>
             </div>
-            <TrackedLink
-              placement="header"
-              href={`${SITE_URL}/advertise`}
-              className="inline-flex min-h-11 shrink-0 items-center border-[3px] border-black bg-[var(--coral)] px-3 py-1.5 text-xs font-black uppercase tracking-wide shadow-hard transition-transform hover:-translate-y-0.5"
-            >
-              <span className="hidden sm:inline">Start an&nbsp;</span>Inquiry →
-            </TrackedLink>
+            <div className="flex shrink-0 items-center gap-3">
+              {/* The paid insights portal for listed businesses. */}
+              <a
+                href="/portal"
+                className="hidden text-xs font-black uppercase tracking-wide text-black/60 underline sm:inline"
+              >
+                Business login
+              </a>
+              <TrackedLink
+                placement="header"
+                href={`${SITE_URL}/advertise`}
+                className="inline-flex min-h-11 items-center border-[3px] border-black bg-[var(--coral)] px-3 py-1.5 text-xs font-black uppercase tracking-wide shadow-hard transition-transform hover:-translate-y-0.5"
+              >
+                <span className="hidden sm:inline">Start an&nbsp;</span>Inquiry →
+              </TrackedLink>
+            </div>
           </div>
         </header>
         <main className="mx-auto max-w-4xl px-4 py-8">{children}</main>
         <footer className="border-t-[3px] border-black bg-white">
           <p className="mx-auto max-w-4xl px-4 py-4 text-xs font-bold text-black/50">
             All numbers are live community aggregates — no advertiser&apos;s
-            individual results are ever shown here. 🏴 Dunedin, FL.
+            individual results are ever shown here. 🏴 Dunedin, FL.{" "}
+            <a href="/portal" className="underline">
+              Business login →
+            </a>
           </p>
         </footer>
         <Analytics />
