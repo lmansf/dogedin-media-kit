@@ -74,9 +74,11 @@ export default function TrendChart({
     return <p className="text-sm font-bold text-black/40">No data yet.</p>;
   }
 
-  // Tooltip anchored to the hovered bucket, flipped on the right half.
+  // Tooltip anchored to the hovered bucket, flipped past the midline so it
+  // always grows toward the wider side and never overruns the card edge on a
+  // narrow (≈320px) screen. Width is also clamped below as a belt-and-braces.
   const tipLeftPct = hoverIdx === null ? 0 : (x(hoverIdx) / W) * 100;
-  const tipFlip = hoverIdx !== null && hoverIdx > n / 2;
+  const tipFlip = tipLeftPct > 50;
 
   return (
     <div>
@@ -186,7 +188,7 @@ export default function TrendChart({
 
         {hoverIdx !== null && (
           <div
-            className="pointer-events-none absolute top-1 z-10 border-2 border-black bg-white px-2.5 py-1.5 shadow-hard"
+            className="pointer-events-none absolute top-1 z-10 max-w-[45%] border-2 border-black bg-white px-2.5 py-1.5 shadow-hard"
             style={
               tipFlip
                 ? { right: `${100 - tipLeftPct}%`, marginRight: 8 }
