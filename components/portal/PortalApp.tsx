@@ -28,6 +28,7 @@ type PortalBusiness = {
   name: string;
   category: string;
   neighborhood: string | null;
+  status: "pending" | "approved" | string;
   insights_active: boolean;
   is_owner: boolean;
   is_admin: boolean;
@@ -282,12 +283,42 @@ function Dashboard({ user }: { user: User }) {
         </Notice>
       )}
 
-      {businesses?.map((b) => (
-        <InsightsPanel key={b.id} biz={b} />
-      ))}
+      {businesses?.map((b) =>
+        b.status === "pending" ? (
+          <PendingPanel key={b.id} biz={b} />
+        ) : (
+          <InsightsPanel key={b.id} biz={b} />
+        )
+      )}
 
       <RedeemBox onDone={load} />
     </div>
+  );
+}
+
+// A just-submitted listing, not yet approved by an admin. The welcome email
+// links here immediately, so this is what a brand-new business sees first.
+function PendingPanel({ biz }: { biz: PortalBusiness }) {
+  return (
+    <section className="border-[3px] border-black bg-white p-5 shadow-hard">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="font-display text-2xl font-extrabold">{biz.name}</h2>
+          <p className="text-[11px] font-black uppercase tracking-wide text-black/40">
+            {biz.category}
+          </p>
+        </div>
+        <span className="border-2 border-black bg-[var(--gold)] px-2 py-0.5 text-[10px] font-black uppercase">
+          ⏳ Under review
+        </span>
+      </div>
+      <p className="mt-2 text-sm font-bold text-black/60">
+        You&apos;re in the right place! A Dogedin admin is reviewing your
+        listing (usually within a day). The moment it&apos;s approved, it goes
+        live in the local guide and your dashboard starts counting — views,
+        reviews, and more — right here.
+      </p>
+    </section>
   );
 }
 
