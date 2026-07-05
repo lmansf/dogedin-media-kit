@@ -318,14 +318,17 @@ export default async function MediaKit() {
               Inquiry form →
             </TrackedLink>
             {/* max-w-full + break-all: a long configured contact email wraps
-                inside the button instead of overflowing a 360px screen. */}
-            <TrackedLink
-              placement="mailto"
-              href={`mailto:${CONTACT_EMAIL}`}
-              className="max-w-full break-all border-[3px] border-black bg-white px-5 py-2 text-sm font-black uppercase tracking-wide text-[var(--ink)] shadow-hard transition-transform hover:-translate-y-0.5"
-            >
-              {CONTACT_EMAIL}
-            </TrackedLink>
+                inside the button instead of overflowing a 360px screen.
+                Rendered only when a contact address is configured. */}
+            {CONTACT_EMAIL && (
+              <TrackedLink
+                placement="mailto"
+                href={`mailto:${CONTACT_EMAIL}`}
+                className="max-w-full break-all border-[3px] border-black bg-white px-5 py-2 text-sm font-black uppercase tracking-wide text-[var(--ink)] shadow-hard transition-transform hover:-translate-y-0.5"
+              >
+                {CONTACT_EMAIL}
+              </TrackedLink>
+            )}
           </div>
         </div>
       </section>

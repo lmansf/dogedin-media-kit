@@ -19,5 +19,6 @@ function normalizeSiteUrl(raw: string | undefined): string {
 
 export const SITE_URL = normalizeSiteUrl(process.env.NEXT_PUBLIC_SITE_URL);
 
-export const CONTACT_EMAIL =
-  (process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? "").trim() || "dogedin.com@gmail.com";
+// Contact address for CTAs. No hardcoded fallback — when unset, consumers
+// hide their mailto link (set NEXT_PUBLIC_CONTACT_EMAIL on the deployment).
+export const CONTACT_EMAIL = (process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? "").trim();
