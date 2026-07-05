@@ -217,9 +217,9 @@ function PortalAuth() {
         {busy ? "One sec…" : mode === "signin" ? "Sign in" : "Create account"}
       </button>
       <p className="text-[11px] font-bold text-black/40">
-        Forgot your password? Reset it at{" "}
+        Forgot your password?{" "}
         <a href={`${SITE_URL}/reset-password`} className="underline">
-          dogedin.com/reset-password
+          Reset it on the main site
         </a>{" "}
         — it&apos;s the same account.
       </p>
