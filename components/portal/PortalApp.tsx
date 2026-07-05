@@ -271,11 +271,19 @@ function Dashboard({ user }: { user: User }) {
         <Notice>
           No Dogedin listing is connected to <strong>{user.email}</strong> yet.
           The connection is the contact email on your listing — if your business
-          is already in the local guide, email{" "}
-          <a href={`mailto:${CONTACT_EMAIL}`} className="underline">
-            {CONTACT_EMAIL}
-          </a>{" "}
-          to link it. Not listed yet?{" "}
+          is already in the local guide,{" "}
+          {CONTACT_EMAIL ? (
+            <>
+              email{" "}
+              <a href={`mailto:${CONTACT_EMAIL}`} className="underline">
+                {CONTACT_EMAIL}
+              </a>{" "}
+              to link it.
+            </>
+          ) : (
+            <>reach out via the site to link it.</>
+          )}{" "}
+          Not listed yet?{" "}
           <a href={`${SITE_URL}/list-your-business`} className="underline">
             Add your business free →
           </a>{" "}
