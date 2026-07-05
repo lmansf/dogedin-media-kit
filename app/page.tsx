@@ -117,9 +117,10 @@ export default async function MediaKit() {
           available on request.
         </p>
 
-        {/* Weekly growth — only rendered when media_kit_weekly() answers
-            with live data. No chart beats a made-up curve. */}
-        {weekly && (
+        {/* Weekly growth — only rendered when the headline stats are live AND
+            media_kit_weekly() answered with data, so a real curve never sits
+            under a "sample data" banner. No chart beats a made-up curve. */}
+        {s.demo === false && weekly && (
           <div className="border-[3px] border-black bg-white p-4 shadow-hard">
             <h3 className="mb-3 text-sm font-black uppercase tracking-wide">
               Community growth · new per week · last 12 weeks
@@ -207,15 +208,18 @@ export default async function MediaKit() {
             <h3 className="mb-3 text-sm font-black uppercase tracking-wide">
               Impression share by placement · last 30 days
             </h3>
+            {/* Derived from the same s.slots the CTR chart uses, so both
+                charts describe the same set of placements and the share
+                denominator is the true total (a slot the RPC returns but
+                SLOT_INFO doesn't know still counts, labelled by its key). */}
             <StackBar
-              segments={Object.keys(SLOT_INFO).map((key, i) => {
-                const stat = s.slots.find((x) => x.slot === key);
-                return {
-                  label: SLOT_INFO[key].name,
-                  value: stat?.impressions_30d ?? 0,
+              segments={s.slots
+                .filter((x) => x.impressions_30d > 0)
+                .map((x, i) => ({
+                  label: SLOT_INFO[x.slot]?.name ?? x.slot,
+                  value: x.impressions_30d,
                   color: SLOT_COLORS[i % SLOT_COLORS.length],
-                };
-              })}
+                }))}
             />
           </div>
         )}
