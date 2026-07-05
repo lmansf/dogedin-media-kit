@@ -7,13 +7,16 @@ import StatTile from "@/components/charts/StatTile";
 import TrendChart from "@/components/charts/TrendChart";
 import { compact } from "@/lib/format";
 
-// The Business Insights portal: a business signs in with the email on its
-// Dogedin listing (owner_email) and — with an active subscription — sees its
-// own engagement numbers: listing views, website taps, calls, direction taps,
-// offer unlocks, plus a review benchmark against its category. All access
-// control lives server-side in the my_portal_businesses() / business_insights()
-// SECURITY DEFINER RPCs (main repo schema § 8): the caller's email must match
-// the listing AND the subscription must be active (admins get a preview).
+// The Business Insights portal, tiered:
+//   FREE  — any account connected to a listing (owner_email or an invite-code
+//           team member) sees the vanity layer: 30-day views + review basics,
+//           with the lead metrics rendered as locked cards + an upgrade CTA.
+//   PAID  — an active $-per-month subscription unlocks the full picture:
+//           website taps, calls, directions, offer unlocks, the daily trend,
+//           the category benchmark — plus team seats (owner can mint up to 4
+//           invite codes; 5 logins total).
+// All access control lives server-side in the SECURITY DEFINER RPCs (main
+// repo schema § 8); this component just renders whatever tier the RPC returns.
 // Accounts are shared with dogedin.com — same Supabase project, same login.
 
 const PRICE_LABEL =
@@ -26,6 +29,7 @@ type PortalBusiness = {
   category: string;
   neighborhood: string | null;
   insights_active: boolean;
+  is_owner: boolean;
   is_admin: boolean;
 };
 
@@ -40,19 +44,29 @@ type DailyRow = {
 
 type Insights = {
   business: { id: string; slug: string; name: string; category: string };
-  access: "active" | "admin_preview";
-  totals_30d: Record<string, number>;
-  totals_lifetime: Record<string, number>;
-  daily_30d: DailyRow[];
+  access: "active" | "admin_preview" | "free";
+  // Free tier:
+  views_30d?: number;
+  // Full tier:
+  totals_30d?: Record<string, number>;
+  totals_lifetime?: Record<string, number>;
+  daily_30d?: DailyRow[];
   reviews: {
     count: number;
     avg: number | null;
     recent_90d: number;
     category: string;
-    category_avg: number | null;
-    category_businesses: number;
-    rank_in_category: number | null;
+    category_avg?: number | null;
+    category_businesses?: number;
+    rank_in_category?: number | null;
   };
+};
+
+type Team = {
+  members: { email: string; added_at: string }[];
+  codes: { code: string; redeemed: boolean }[];
+  seats_total: number;
+  seats_used: number;
 };
 
 export default function PortalApp() {
@@ -103,9 +117,9 @@ export default function PortalApp() {
           Your listing&apos;s numbers
         </h1>
         <p className="mt-1 max-w-lg text-sm font-bold text-black/60">
-          Views, website taps, calls, directions, offer unlocks — and how your
-          reviews stack up in your category. Aggregate counts only; visitor
-          identity is never collected.
+          Free: see that dog people are finding you. Insights ({PRICE_LABEL}):
+          see the taps, calls, offer unlocks and how you rank in your category.
+          Aggregate counts only — visitor identity is never collected.
         </p>
       </section>
 
@@ -117,7 +131,7 @@ export default function PortalApp() {
       )}
       {subBanner === "canceled" && (
         <Notice>
-          Checkout canceled — nothing was charged. Subscribe any time below.
+          Checkout canceled — nothing was charged. Upgrade any time below.
         </Notice>
       )}
 
@@ -172,7 +186,9 @@ function PortalAuth() {
       </div>
       <p className="text-xs font-bold text-black/50">
         Use the email on your Dogedin listing — that&apos;s what connects your
-        account to your business. Same account works on dogedin.com.
+        account to your business. Got a team invite code instead? Create an
+        account with any email, then redeem the code inside. Same account works
+        on dogedin.com.
       </p>
       <input
         type="email"
@@ -261,47 +277,69 @@ function Dashboard({ user }: { user: User }) {
           to link it. Not listed yet?{" "}
           <a href={`${SITE_URL}/list-your-business`} className="underline">
             Add your business free →
-          </a>
+          </a>{" "}
+          Got a team invite code? Redeem it below.
         </Notice>
       )}
 
-      {businesses?.map((b) =>
-        b.insights_active ? (
-          <InsightsPanel key={b.id} biz={b} />
-        ) : (
-          <LockedPanel key={b.id} biz={b} />
-        )
-      )}
+      {businesses?.map((b) => (
+        <InsightsPanel key={b.id} biz={b} />
+      ))}
+
+      <RedeemBox onDone={load} />
     </div>
   );
 }
 
-// A listing without an active subscription: what they get + the subscribe CTA.
-function LockedPanel({ biz }: { biz: PortalBusiness }) {
+// "Have an invite code?" — ties this signed-in account to a business as a team
+// member (codes are minted by the owner on a premium listing).
+function RedeemBox({ onDone }: { onDone: () => void }) {
+  const [code, setCode] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const redeem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supabase || !code.trim()) return;
+    setBusy(true);
+    setNotice(null);
+    const { data, error } = await supabase.rpc("redeem_business_invite", {
+      p_code: code.trim(),
+    });
+    setBusy(false);
+    if (error || !data) {
+      setNotice("That code didn't work — it may already be used. Ask the owner for a fresh one.");
+      return;
+    }
+    setCode("");
+    setNotice("You're in! Loading the business…");
+    onDone();
+  };
+
   return (
-    <section className="border-[3px] border-black bg-white p-5 shadow-hard">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl font-extrabold">{biz.name}</h2>
-          <p className="text-[11px] font-black uppercase tracking-wide text-black/40">
-            {biz.category}
-            {biz.neighborhood ? ` · ${biz.neighborhood}` : ""}
-          </p>
-          <p className="mt-2 max-w-md text-sm font-bold text-black/60">
-            Unlock your listing&apos;s live numbers: views, website taps, calls,
-            direction taps, offer unlocks, and how your rating compares with
-            other {biz.category.toLowerCase()} spots. Counted since day one —
-            history is already accruing.
-          </p>
-        </div>
-        <a
-          href={`${SITE_URL}/api/insights/checkout?business=${biz.id}`}
-          className="shrink-0 border-[3px] border-black bg-[var(--coral)] px-4 py-2 text-sm font-black uppercase tracking-wide shadow-hard transition-transform hover:-translate-y-0.5"
-        >
-          Unlock insights · {PRICE_LABEL}
-        </a>
-      </div>
-    </section>
+    <form
+      onSubmit={redeem}
+      className="flex flex-wrap items-center gap-2 border-2 border-dashed border-black/30 p-3"
+    >
+      <span className="text-xs font-black uppercase tracking-wide text-black/50">
+        🎟 Have a team invite code?
+      </span>
+      <input
+        value={code}
+        onChange={(e) => setCode(e.target.value)}
+        placeholder="PACK-XXXXXXXX"
+        className={`${input} w-44 uppercase`}
+      />
+      <button
+        type="button"
+        onClick={redeem}
+        disabled={busy}
+        className="border-2 border-black bg-white px-3 py-2 text-xs font-black uppercase tracking-wide shadow-hard transition-transform hover:-translate-y-0.5 disabled:opacity-50"
+      >
+        {busy ? "…" : "Redeem"}
+      </button>
+      {notice && <span className="text-xs font-bold text-black/60">{notice}</span>}
+    </form>
   );
 }
 
@@ -334,16 +372,94 @@ function InsightsPanel({ biz }: { biz: PortalBusiness }) {
   if (!ins)
     return (
       <Notice>
-        Couldn&apos;t load insights for {biz.name} — if you just subscribed,
-        give it a few seconds and refresh.
+        Couldn&apos;t load {biz.name} — if you just subscribed or redeemed a
+        code, give it a few seconds and refresh.
       </Notice>
     );
 
-  const t = ins.totals_30d;
-  const taps30 =
-    (t.website ?? 0) + (t.phone ?? 0) + (t.directions ?? 0);
-  const daily = ins.daily_30d;
+  return ins.access === "free" ? (
+    <FreePanel biz={biz} ins={ins} />
+  ) : (
+    <FullPanel biz={biz} ins={ins} />
+  );
+}
+
+// ------------------------------------------------------------- FREE tier
+// The vanity layer, real numbers — plus the locked lead metrics as the pitch.
+function FreePanel({ biz, ins }: { biz: PortalBusiness; ins: Insights }) {
   const r = ins.reviews;
+  return (
+    <section className="flex flex-col gap-4 border-[3px] border-black bg-white p-5 shadow-hard">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="font-display text-2xl font-extrabold">{biz.name}</h2>
+          <p className="text-[11px] font-black uppercase tracking-wide text-black/40">
+            {ins.business.category} · free plan
+          </p>
+        </div>
+        <span className="border-2 border-black bg-[var(--sand)] px-2 py-0.5 text-[10px] font-black uppercase">
+          Free
+        </span>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <StatTile label="Listing views · 30d" value={compact(ins.views_30d ?? 0)} />
+        <StatTile label="Reviews" value={compact(r.count)} />
+        <StatTile label="Avg rating" value={r.avg != null ? `${r.avg}★` : "—"} />
+      </div>
+
+      {/* The locked layer: name exactly what they'd see, show nothing. */}
+      <div>
+        <p className="mb-2 text-xs font-black uppercase tracking-wide text-black/50">
+          In Insights ({PRICE_LABEL})
+        </p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {[
+            "Website taps",
+            "Calls",
+            "Direction taps",
+            "Offer unlocks",
+            "Daily trend chart",
+            `Rank among ${r.category?.toLowerCase() ?? "your category"}`,
+          ].map((label) => (
+            <div
+              key={label}
+              className="border-[3px] border-dashed border-black/40 bg-[var(--sand)]/60 p-4"
+            >
+              <p className="text-xs font-black uppercase tracking-wide text-black/40">
+                {label}
+              </p>
+              <p className="mt-1 text-3xl font-black text-black/25">🔒</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t-2 border-dashed border-black/15 pt-3">
+        <p className="max-w-sm text-xs font-bold text-black/60">
+          Insights shows the numbers that mean customers — taps, calls,
+          directions, offer unlocks, and your rank in {r.category ?? "your category"}.
+          Includes <strong>5 team logins</strong>. Counting is already running,
+          so your history is waiting.
+        </p>
+        <a
+          href={`${SITE_URL}/api/insights/checkout?business=${biz.id}`}
+          className="shrink-0 border-[3px] border-black bg-[var(--coral)] px-4 py-2 text-sm font-black uppercase tracking-wide shadow-hard transition-transform hover:-translate-y-0.5"
+        >
+          Upgrade · {PRICE_LABEL}
+        </a>
+      </div>
+    </section>
+  );
+}
+
+// ------------------------------------------------------------- PAID tier
+function FullPanel({ biz, ins }: { biz: PortalBusiness; ins: Insights }) {
+  const t = ins.totals_30d ?? {};
+  const daily = ins.daily_30d ?? [];
+  const r = ins.reviews;
+  const life = ins.totals_lifetime ?? {};
+  const taps30 = (t.website ?? 0) + (t.phone ?? 0) + (t.directions ?? 0);
 
   return (
     <section className="flex flex-col gap-4 border-[3px] border-black bg-white p-5 shadow-hard">
@@ -377,16 +493,8 @@ function InsightsPanel({ biz }: { biz: PortalBusiness }) {
           <TrendChart
             labels={daily.map((d) => dayLabel(d.day))}
             series={[
-              {
-                name: "Views",
-                color: "var(--series-1)",
-                values: daily.map((d) => d.view),
-              },
-              {
-                name: "Website taps",
-                color: "var(--series-2)",
-                values: daily.map((d) => d.website),
-              },
+              { name: "Views", color: "var(--series-1)", values: daily.map((d) => d.view) },
+              { name: "Website taps", color: "var(--series-2)", values: daily.map((d) => d.website) },
               {
                 name: "Calls + directions",
                 color: "var(--series-3)",
@@ -410,7 +518,7 @@ function InsightsPanel({ biz }: { biz: PortalBusiness }) {
           <p>
             ⭐ {r.avg} average over {r.count} review{r.count === 1 ? "" : "s"}
             {r.recent_90d > 0 && <> ({r.recent_90d} in the last 90 days)</>}.
-            Category average for {r.category.toLowerCase()}:{" "}
+            Category average for {r.category?.toLowerCase()}:{" "}
             {r.category_avg ?? "—"}
             {r.rank_in_category != null && (
               <>
@@ -424,10 +532,7 @@ function InsightsPanel({ biz }: { biz: PortalBusiness }) {
         ) : (
           <p>
             No reviews yet — your{" "}
-            <a
-              href={`${SITE_URL}/things-to-do/${biz.slug}`}
-              className="underline"
-            >
+            <a href={`${SITE_URL}/things-to-do/${biz.slug}`} className="underline">
               listing&apos;s review link
             </a>{" "}
             is the fastest way to start (reviewers unlock your thank-you offer).
@@ -435,17 +540,86 @@ function InsightsPanel({ biz }: { biz: PortalBusiness }) {
         )}
       </div>
 
+      {(biz.is_owner || biz.is_admin) && <TeamPanel businessId={biz.id} />}
+
       <p className="text-[11px] font-bold text-black/40">
-        Lifetime: {compact(ins.totals_lifetime.view ?? 0)} views ·{" "}
-        {compact(
-          (ins.totals_lifetime.website ?? 0) +
-            (ins.totals_lifetime.phone ?? 0) +
-            (ins.totals_lifetime.directions ?? 0)
-        )}{" "}
+        Lifetime: {compact(life.view ?? 0)} views ·{" "}
+        {compact((life.website ?? 0) + (life.phone ?? 0) + (life.directions ?? 0))}{" "}
         taps. Counters are aggregate per day — no visitor identity is ever
         recorded.
       </p>
     </section>
+  );
+}
+
+// Owner-only team seats: mint/copy invite codes, see who's in (5 seats total).
+function TeamPanel({ businessId }: { businessId: string }) {
+  const [team, setTeam] = useState<Team | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase.rpc("business_team", { p_business_id: businessId });
+    setTeam((data as Team) ?? null);
+  }, [businessId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (!team) return null;
+  const openCodes = team.codes.filter((c) => !c.redeemed);
+  const canMint = team.seats_used + openCodes.length < team.seats_total;
+
+  const mint = async () => {
+    if (!supabase) return;
+    setBusy(true);
+    await supabase.rpc("generate_business_invite", { p_business_id: businessId });
+    await load();
+    setBusy(false);
+  };
+
+  return (
+    <div className="border-t-2 border-dashed border-black/15 pt-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-black uppercase tracking-wide">
+          Team access · {team.seats_used} of {team.seats_total} seats
+        </h3>
+        <button
+          type="button"
+          onClick={mint}
+          disabled={!canMint || busy}
+          title={canMint ? "Create an invite code" : "All seats are taken"}
+          className="border-2 border-black bg-white px-3 py-1.5 text-xs font-black uppercase tracking-wide shadow-hard transition-transform hover:-translate-y-0.5 disabled:opacity-40"
+        >
+          {busy ? "…" : "+ Invite code"}
+        </button>
+      </div>
+      {(team.members.length > 0 || openCodes.length > 0) && (
+        <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
+          {team.members.map((m) => (
+            <span key={m.email} className="border-2 border-black bg-[var(--sand)] px-2 py-1">
+              👤 {m.email}
+            </span>
+          ))}
+          {openCodes.map((c) => (
+            <button
+              key={c.code}
+              type="button"
+              onClick={() => navigator.clipboard?.writeText(c.code)}
+              title="Copy code"
+              className="border-2 border-dashed border-black bg-white px-2 py-1 font-mono hover:bg-[var(--sand)]"
+            >
+              🎟 {c.code} ⧉
+            </button>
+          ))}
+        </div>
+      )}
+      <p className="mt-2 text-[11px] font-bold text-black/40">
+        Send a code to a teammate — they create their own login at this page and
+        redeem it. Codes are single-use.
+      </p>
+    </div>
   );
 }
 
