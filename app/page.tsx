@@ -7,9 +7,11 @@ import StackBar from "@/components/charts/StackBar";
 import TrendChart from "@/components/charts/TrendChart";
 import TrackedLink from "@/components/TrackedLink";
 
-// Short enough that a schema/env fix shows up within minutes, long enough
-// that the Supabase RPCs aren't hit on every request.
-export const revalidate = 600;
+// Render on every request so advertisers always see current impression/click
+// counts — the page tells them "refresh and it re-counts", and now it truly
+// does. The RPCs are cheap and this page is low-traffic; if you ever want to
+// trade a few seconds of freshness for DB load, swap this for `revalidate = 30`.
+export const dynamic = "force-dynamic";
 
 const SLOT_INFO: Record<string, { name: string; where: string; blurb: string }> = {
   home_feed: {
